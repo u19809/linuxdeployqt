@@ -1,11 +1,13 @@
-# linuxdeployqt [![Build Status](https://travis-ci.org/probonopd/linuxdeployqt.svg?branch=master)](https://travis-ci.org/probonopd/linuxdeployqt) ![Downloads](https://img.shields.io/github/downloads/probonopd/linuxdeployqt/total.svg) [![Codacy Badge](https://api.codacy.com/project/badge/Grade/93b4a359057e412b8a7673b4b61d7cb7)](https://www.codacy.com/app/probonopd/linuxdeployqt?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=probonopd/linuxdeployqt&amp;utm_campaign=Badge_Grade) [![discourse](https://img.shields.io/badge/forum-discourse-orange.svg)](http://discourse.appimage.org/t/linuxdeployqt-new-linux-deployment-tool-for-qt/57) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/probonopd/AppImageKit?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![irc](https://img.shields.io/badge/IRC-%23AppImage%20on%20freenode-blue.svg)](https://webchat.freenode.net/?channels=AppImage)
+# linuxdeployqt [![Build Status](https://github.com/probonopd/linuxdeployqt/actions/workflows/build.yaml/badge.svg?branch=master)](https://github.com/probonopd/linuxdeployqt/actions) ![Downloads](https://img.shields.io/github/downloads/probonopd/linuxdeployqt/total.svg) [![discourse](https://img.shields.io/badge/forum-discourse-orange.svg)](http://discourse.appimage.org/t/linuxdeployqt-new-linux-deployment-tool-for-qt/57) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/probonopd/AppImageKit?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![irc](https://img.shields.io/badge/IRC-%23AppImage%20on%20freenode-blue.svg)](https://webchat.freenode.net/?channels=AppImage)
+
+**Please note:** As of 2024 , I am no longer actively working on this codebase in favor of https://github.com/probonopd/go-appimage.
 
 This Linux Deployment Tool, `linuxdeployqt`, takes an application as input and makes it self-contained by copying in the resources that the application uses (like libraries, graphics, and plugins) into a bundle. The resulting bundle can be distributed as an AppDir or as an [AppImage](https://appimage.org/) to users, or can be put into cross-distribution packages. It can be used as part of the build process to deploy applications written in C, C++, and other compiled languages with systems like `CMake`, `qmake`, and `make`. When used on Qt-based applications, it can bundle a specific minimal subset of Qt required to run the application.
 
 ![](https://user-images.githubusercontent.com/2480569/34471167-d44bd55e-ef41-11e7-941e-e091a83cae38.png)
 
 ## Differences to macdeployqt
-This tool is conceptually based on the [Mac Deployment Tool](https://doc-snapshots.qt.io/qt5-5.9/osx-deployment.html#the-mac-deployment-tool), `macdeployqt` in the tools applications of the Qt Toolkit, but has been changed to a slightly different logic and other tools needed for Linux.
+This tool is conceptually based on the [Mac Deployment Tool](https://doc.qt.io/qt-5/macos-deployment.html#macdeploy), `macdeployqt` in the tools applications of the Qt Toolkit, but has been changed to a slightly different logic and other tools needed for Linux.
 
 * Instead of an `.app` bundle for macOS, this produces an [AppDir](http://rox.sourceforge.net/desktop/AppDirs.html) for Linux
 * Instead of a `.dmg` disk image for macOS, this produces an [AppImage](http://appimage.org/) for Linux which is quite similar to a dmg but executes the contained application rather than just opening a window on the desktop from where the application can be launched
@@ -16,7 +18,9 @@ __To produce binaries that are compatible with many target systems, build on the
 
 We recommend to target the oldest still-supported Ubuntu LTS release and build your applications on that. If you do this, the resulting binaries should be able to run on newer (but not older) systems (Ubuntu and other distributions).
 
-We do not support linuxdeployqt on systems newer than the oldest Ubuntu LTS release, because we want to encourage developers to build applications in a way that makes them possible to run on all still-supported distribution releases. For an overview about the support cycles of Ubuntu LTS releases, please see https://wiki.ubuntu.com/Releases.
+`linuxdeployqt` refuses to work on systems any newer than the oldest currently still-supported Ubuntu LTS release, because we want to encourage developers to build applications in a way that makes them possible to run on all still-supported distribution releases. For an overview about the support cycles of Ubuntu LTS releases, please see https://wiki.ubuntu.com/Releases. If you absolutely need to build your application on a build system newer than the oldest currently still-supported Ubuntu LTS release, then consider using go-appimage `appimagetool -s deploy` (unlike `linuxdeployqt`, this bundles _all_ libraries).
+
+`linuxdeployqt` does not contain any specific workarounds for Wayland which breaks many things. For best results, do not use Wayland.
 
 ## Installation
 
@@ -37,6 +41,8 @@ Options:
                               searching for libraries.
    -executable=<path>       : Let the given executable use the deployed libraries
                               too
+   -executable-dir=<path>   : Let all the executables in the folder (recursive) use
+                              the deployed libraries too
    -extra-plugins=<list>    : List of extra plugins which should be deployed,
                               separated by comma.
    -no-copy-copyright-files : Skip deployment of copyright files.
@@ -155,55 +161,16 @@ Usage examples:
 2. `-extra-plugins=sqldrivers,iconengines/libqsvgicon.so`  
 3. `-extra-plugins=sqldrivers,iconengines,mediaservice,gamepads`
 
-## Using linuxdeployqt with Travis CI
+#### Handle Qt libraries infix
 
-A common use case for `linuxdeployqt` is to use it on Travis CI after the `make` command. The following example illustrates how to use `linuxdeployqt` with Travis CI. Create a `.travis.yml` file similar to this one (be sure to customize it, e.g., change `APPNAME` to the name of your application as it is spelled in the `Name=` entry of the `.desktop` file):
+If you prepared a custom Qt distribution using the option `-qtlibinfix` during Qt configuration (resulting in library names such as `libQt5CoreCustom.so`), you must mention this infix on `linuxdeployqt` call. As an example, let's see if we configure our distribution using the infix `Custom`.
 
-```
-language: cpp
-compiler: gcc
-sudo: require
-dist: trusty
+On Qt build chain: `configure -qtlibinfix "Custom" [...]`. This will generate Qt libraries (.so) like `libQt5CoreCustom.so`
 
-before_install:
-  - sudo add-apt-repository ppa:beineri/opt-qt-5.10.1-trusty -y
-  - sudo apt-get update -qq
+So, on `linuxdeployqt` call: `linuxdeployqt [...] -qtlibinfix "Custom" [...]`.
 
-install:
-  - sudo apt-get -y install qt510base libgl1-mesa-dev
-  - source /opt/qt*/bin/qt*-env.sh
+If you don't mention this infix, `linuxdeployqt` won't be able to detect Qt Core and Widgets libraries.
 
-script:
-  - qmake CONFIG+=release PREFIX=/usr
-  - make -j$(nproc)
-  - make INSTALL_ROOT=appdir -j$(nproc) install ; find appdir/
-  - wget -c -nv "https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage"
-  - chmod a+x linuxdeployqt-continuous-x86_64.AppImage
-  # export VERSION=... # linuxdeployqt uses this for naming the file
-  - ./linuxdeployqt-continuous-x86_64.AppImage appdir/usr/share/applications/*.desktop -appimage
-
-after_success:
-  # find appdir -executable -type f -exec ldd {} \; | grep " => /usr" | cut -d " " -f 2-3 | sort | uniq # for debugging
-  # curl --upload-file APPNAME*.AppImage https://transfer.sh/APPNAME-git.$(git rev-parse --short HEAD)-x86_64.AppImage
-  - wget -c https://github.com/probonopd/uploadtool/raw/master/upload.sh
-  - bash upload.sh APPNAME*.AppImage*
-  
-branches:
-  except:
-    - # Do not build tags that we create when we upload to GitHub Releases
-    - /^(?i:continuous)/
-```
-
-When you save your change, then Travis CI should build and upload an AppImage for you. More likely than not, some fine-tuning will still be required.
-
-For this to work, you need to set up `GITHUB_TOKEN` in Travis CI; please see https://github.com/probonopd/uploadtool.
-
-By default, qmake `.pro` files generated by Qt Creator unfortunately don't support `make install` out of the box. In this case you will get
-
-```
-make: Nothing to be done for `install'.
-find: `appdir/': No such file or directory
-```
 ### Fix for "make: Nothing to be done for 'install'"
 
 If `qmake` does not allow for `make install` or does not install the desktop file and icon, then you need to change your `.pro` file it similar to https://github.com/probonopd/FeedTheMonkey/blob/master/FeedTheMonkey.pro.
